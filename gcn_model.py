@@ -52,20 +52,24 @@ class GCNConv(MessagePassing):
     
 class GCN(torch.nn.Module):
 
-    def __init__(self, channels: List[int]) -> None:
+    def __init__(self, channels: List[int], activation=None) -> None:
         super().__init__()
         self.convs = torch.nn.ModuleList(GCNConv(channels[i], channels[i + 1]) for i in range(len(channels) - 1))
+        self.activation = activation
 
     def forward(self, x, edge_index):
         for i, conv in enumerate(self.convs):
             x = conv(x, edge_index)
             if i < len(self.convs) - 1:
-                x = F.relu(x)
+                if self.activation:
+                    x = self.activation(x)
+                else:
+                    x = F.relu(x)
         return x
 
         
 class GCNNet(torch.nn.Module):
-    def __init__(self, channels):
+    def __init__(self, channels: List[int]):
         super().__init__()
         self.gcn = GCN(channels)
         self.lin1 = torch.nn.Linear(channels[-1], 8)
