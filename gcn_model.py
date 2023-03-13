@@ -63,4 +63,23 @@ class GCN(torch.nn.Module):
                 x = F.relu(x)
         return x
 
+        
+class GCNNet(torch.nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.gcn = GCN(channels)
+        self.lin1 = torch.nn.Linear(channels[-1], 8)
+        self.lin2 = torch.nn.Linear(8, 1)
+
+    def forward(self, x, edge_index, batch):
+        x = self.gcn(x, edge_index)
+        y = torch.zeros(torch.max(batch)+1, x.size(1), dtype=x.dtype, device=x.device)
+        for node, graph_node in enumerate(batch):
+            y[graph_node, :] += x[node, :]
+        _, counts = torch.unique_consecutive(batch, return_counts=True)
+        y = y/counts.unsqueeze(1)
+        y = self.lin1(y)
+        y = F.relu(y)
+        y = self.lin2(y)
+        return y
 
