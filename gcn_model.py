@@ -1,10 +1,57 @@
-from typing import List
+from typing import List, Dict
 import torch
 from torch.nn import Linear, Parameter
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops, degree
 import torch.nn.functional as F
 
+
+class GCNNet(torch.nn.Module):
+    def __init__(self, model_params: Dict):
+        super().__init__()
+        self.gcn = GCN(**model_params['GCN'])
+        self.mlp = MLP(**model_params['MLP'])
+
+    def forward(self, x, edge_index, batch):
+        x = self.gcn(x, edge_index)
+        x = scatter(batch, x)
+        x = self.mlp(x)
+        return x
+    
+
+class GCN(torch.nn.Module):
+    def __init__(self, channels: List[int], activation=None) -> None:
+        super().__init__()
+        self.convs = torch.nn.ModuleList(GCNConv(channels[i], channels[i + 1]) for i in range(len(channels) - 1))
+        self.activation = activation
+
+    def forward(self, x, edge_index):
+        for i, conv in enumerate(self.convs):
+            x = conv(x, edge_index)
+            if i < len(self.convs) - 1:
+                if self.activation:
+                    x = self.activation(x)
+                else:
+                    x = F.relu(x)
+        return x
+
+
+class MLP(torch.nn.Module):
+    def __init__(self, channels: List[int], activation=None) -> None:
+        super().__init__()
+        self.layers = torch.nn.ModuleList(Linear(channels[i], channels[i + 1]) for i in range(len(channels) - 1))
+        self.activation = activation
+
+    def forward(self, x):
+        for i, layer in enumerate(self.layers):
+            x = layer(x)
+            if i < len(self.layers) - 1:
+                if self.activation:
+                    x = self.activation(x)
+                else:
+                    x = F.relu(x)
+        return x
+    
 
 class GCNConv(MessagePassing):
     def __init__(self, in_channels, out_channels):
@@ -49,41 +96,14 @@ class GCNConv(MessagePassing):
         # Step 4: Normalize node features.
         return norm.view(-1, 1) * x_j
 
-    
-class GCN(torch.nn.Module):
-
-    def __init__(self, channels: List[int], activation=None) -> None:
-        super().__init__()
-        self.convs = torch.nn.ModuleList(GCNConv(channels[i], channels[i + 1]) for i in range(len(channels) - 1))
-        self.activation = activation
-
-    def forward(self, x, edge_index):
-        for i, conv in enumerate(self.convs):
-            x = conv(x, edge_index)
-            if i < len(self.convs) - 1:
-                if self.activation:
-                    x = self.activation(x)
-                else:
-                    x = F.relu(x)
-        return x
-
         
-class GCNNet(torch.nn.Module):
-    def __init__(self, channels: List[int]):
-        super().__init__()
-        self.gcn = GCN(channels)
-        self.lin1 = torch.nn.Linear(channels[-1], 8)
-        self.lin2 = torch.nn.Linear(8, 1)
+def scatter(batch, x):
+    y = torch.zeros(torch.max(batch)+1, x.size(1), dtype=x.dtype, device=x.device)
+    for node, graph_node in enumerate(batch):
+        y[graph_node, :] += x[node, :]
+    _, counts = torch.unique_consecutive(batch, return_counts=True)
+    y = y/counts.unsqueeze(1)
+    return y
 
-    def forward(self, x, edge_index, batch):
-        x = self.gcn(x, edge_index)
-        y = torch.zeros(torch.max(batch)+1, x.size(1), dtype=x.dtype, device=x.device)
-        for node, graph_node in enumerate(batch):
-            y[graph_node, :] += x[node, :]
-        _, counts = torch.unique_consecutive(batch, return_counts=True)
-        y = y/counts.unsqueeze(1)
-        y = self.lin1(y)
-        y = F.relu(y)
-        y = self.lin2(y)
-        return y
+
 
