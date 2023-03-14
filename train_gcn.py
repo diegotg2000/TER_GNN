@@ -96,7 +96,7 @@ if __name__ == '__main__':
 
 
     train_loader = DataLoader(train_ds, batch_size=32, shuffle=True)
-    test_loader = DataLoader(val_ds, batch_size=32, shuffle=False)
+    val_loader = DataLoader(val_ds, batch_size=32, shuffle=False)
 
 
     model = GCNNet(MODEL_PARAMS).to(device)
@@ -105,9 +105,9 @@ if __name__ == '__main__':
     loss = nn.MSELoss()
 
     train_loss = []
-    test_loss = []
+    val_loss = []
     train_r2 = []
-    test_r2 = []
+    val_r2 = []
 
     for epoch in range(3):
         print('EPOCH:', epoch+1)
@@ -117,23 +117,23 @@ if __name__ == '__main__':
         train_r2.append(r2_value)
 
         print('Validating..')
-        loss_value, r2_value = validate(model, test_loader, loss)
-        test_loss.append(loss_value)
-        test_r2.append(r2_value)
+        loss_value, r2_value = validate(model, val_loader, loss)
+        val_loss.append(loss_value)
+        val_r2.append(r2_value)
 
 
         print('Training Loss:', train_loss[-1])
         print('Training R2:', train_r2[-1])
-        print('Validation Loss:', test_loss[-1])
-        print('Validation R2:', test_r2[-1])
+        print('Validation Loss:', val_loss[-1])
+        print('Validation R2:', val_r2[-1])
 
 
     RESULT_DICT = {
         'params': MODEL_PARAMS,
         'train_loss': train_loss,
-        'test_loss': test_loss,
+        'test_loss': val_loss,
         'train_r2': train_r2,
-        'test_r2': test_r2
+        'test_r2': val_r2
     }
 
     with open('results.json', 'w') as f:
