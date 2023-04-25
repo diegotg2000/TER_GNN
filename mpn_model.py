@@ -1,4 +1,3 @@
-# We import the pytorch dependencies
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
